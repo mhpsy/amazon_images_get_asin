@@ -1,0 +1,47 @@
+{
+  "name": "ts-starter",
+  "type": "module",
+  "version": "1.0.0",
+  "description": "",
+  "author": "mhpsy",
+  "license": "ISC",
+  "keywords": [],
+  "exports": {
+    "import": {
+      "types": "./dist/index.d.mts",
+      "default": "./dist/index.mjs"
+    },
+    "require": {
+      "types": "./dist/index.d.cts",
+      "default": "./dist/index.cjs"
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.cts",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "build": "pkgroll",
+    "build:watch": "pkgroll --watch",
+    "build:source": "pkgroll --source",
+    "lint": "eslint",
+    "test": "vitest --ui"
+  },
+  "dependencies": {
+    "dayjs": "^1.11.13",
+    "winston": "^3.17.0"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^4.11.0",
+    "@types/node": "^22.13.14",
+    "@vitest/ui": "^3.0.9",
+    "eslint": "^9.23.0",
+    "pkgroll": "^2.12.1",
+    "tinyexec": "^1.0.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vite-tsconfig-paths": "^5.1.4",
+    "vitest": "^3.0.9"
+  }
+}
