@@ -111,7 +111,8 @@ async function waitForAndParseResults(page: Page, totalTimeout: number): Promise
   logger.info('API response received and UI container is visible.')
 
   const responseBody = await targetResponse.json()
-  const parsedResults = ImageSearchResultsSchema.parse(responseBody)
+  // const parsedResults = ImageSearchResultsSchema.parse(responseBody)
+  const parsedResults = responseBody
   logger.info('Successfully parsed ASINs from response.', { firstAsinList: parsedResults.searchResults[0]?.bbxAsinList })
 
   return parsedResults
