@@ -35,7 +35,7 @@ jobs:
           context: .
           push: true
           # 镜像的标签，格式推荐为 ghcr.io/用户名/仓库名:latest
-          tags: ghcr.io/${{ github.repository_owner }}/${{ github.repository }}:latest
+          tags: ghcr.io/${{ github.repository }}:latest
 
       # 第四步：在服务器上部署
       # 这是在你的服务器上直接执行的 shell 命令
