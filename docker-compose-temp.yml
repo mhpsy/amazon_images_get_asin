@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  amazon-image-asin:
+    image: ghcr.io/mhpsy/amazon-image-asin:latest
+    ports:
+      - "127.0.0.1:7999:8000"
+    environment:
+      - NODE_ENV=production
+      - PORT=8000
+      - HOST=0.0.0.0
+    volumes:
+      # 持久化日志文件
+      - ./logs:/app/logs
+      # 持久化临时文件目录
+      - ./temp:/app/temp
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

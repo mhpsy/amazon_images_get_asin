@@ -151,9 +151,11 @@ export async function startServer(port: number = 3000, host: string = '0.0.0.0')
     await registerPlugins()
 
     await fastify.listen({ port, host })
+
     logger.info(`🚀 服务器启动成功，运行在 http://${host}:${port}`)
     logger.info(`📊 健康检查接口: http://${host}:${port}/health`)
     logger.info(`🖼️ 图片上传接口: http://${host}:${port}/api/upload-image`)
+
     return fastify
   }
   catch (error) {

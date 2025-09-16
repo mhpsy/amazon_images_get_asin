@@ -21,12 +21,19 @@
   "types": "./dist/index.d.cts",
   "scripts": {
     "dev": "tsx src/index.ts",
+    "start": "node dist/index.mjs",
     "typecheck": "tsc --noEmit",
     "build": "pkgroll",
     "build:watch": "pkgroll --watch",
     "build:source": "pkgroll --source",
     "lint": "eslint",
-    "test": "vitest --ui"
+    "test": "vitest --ui",
+    "docker:build": "docker build -t amazon-image-asin .",
+    "docker:run": "docker run -p 8000:8000 amazon-image-asin",
+    "docker:dev": "docker-compose --profile dev up -d app-dev",
+    "docker:prod": "docker-compose up -d app",
+    "docker:stop": "docker-compose down",
+    "docker:logs": "docker-compose logs -f"
   },
   "dependencies": {
     "@fastify/cors": "^11.1.0",

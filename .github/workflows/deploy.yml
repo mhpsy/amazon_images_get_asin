@@ -1,0 +1,59 @@
+# .github/workflows/deploy.yml
+
+name: Build and Deploy to Server
+
+# 触发条件：当有代码 push 到 main 分支时
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    # 关键：指定任务运行在自托管的 Runner 上
+    runs-on: self-hosted
+
+    steps:
+      # 第一步：检出代码
+      # Runner 会把你的仓库代码下载到本地
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 第二步：登录到 GitHub Container Registry
+      # 使用我们刚刚配置的 Secret
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }} # 你的 GitHub 用户名
+          password: ${{ secrets.CR_PAT }} # 使用配置的 Personal Access Token
+
+      # 第三步：构建并推送 Docker 镜像
+      # 使用 docker/build-push-action 插件来简化操作
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          # 镜像的标签，格式推荐为 ghcr.io/用户名/仓库名:latest
+          tags: ghcr.io/${{ github.repository_owner }}/${{ github.repository }}:latest
+
+      # 第四步：在服务器上部署
+      # 这是在你的服务器上直接执行的 shell 命令
+      - name: Deploy on Server
+        run: |
+          # 确保 docker-compose.yml 文件在正确的路径
+          # 如果你的 docker-compose.yml 不在代码仓库里，你需要指定它的绝对路径
+          echo "Changing directory to /data/apps/amazon-image-asin"
+          cd /data/apps/amazon-image-asin
+
+          echo "Pulling the latest image..."
+          docker-compose pull amazon-image-asin  # "amazon-image-asin" 是 docker-compose.yml 中定义的服务名
+
+          echo "Restarting the container..."
+          # --force-recreate 会确保即使镜像 tag 没变也重新创建容器
+          # -d 表示后台运行
+          docker-compose up -d --force-recreate amazon-image-asin
+
+          echo "Cleaning up old images..."
+          # 删除所有未被任何容器使用的 "dangling" 镜像
+          docker image prune -f
