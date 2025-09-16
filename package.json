@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "dayjs": "^1.11.13",
+    "puppeteer-core": "^24.20.0",
     "winston": "^3.17.0"
   },
   "devDependencies": {
