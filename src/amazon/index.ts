@@ -166,8 +166,13 @@ export async function uploadImagesToAmazon(options: AmazonUploadOptions): Promis
   }
   finally {
     if (browser) {
-      await browser.close()
-      logger.info('Browser connection closed.')
+      try {
+        await browser.close()
+        logger.info('Browser connection closed.')
+      }
+      catch (error) {
+        logger.error('An error occurred during the browser connection close:', error)
+      }
     }
   }
 }
