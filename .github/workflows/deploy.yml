@@ -43,8 +43,8 @@ jobs:
         run: |
           # 确保 docker-compose.yml 文件在正确的路径
           # 如果你的 docker-compose.yml 不在代码仓库里，你需要指定它的绝对路径
-          echo "Changing directory to /data/apps/amazon-image-asin"
-          cd /data/apps/amazon-image-asin
+          echo "Changing directory to /data/apps/amazon_images_get_asin"
+          cd /data/apps/amazon_images_get_asin
 
           echo "Pulling the latest image..."
           docker compose pull amazon_images_get_asin  # "amazon-image-asin" 是 docker-compose.yml 中定义的服务名

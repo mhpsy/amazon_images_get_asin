@@ -13,16 +13,13 @@ services:
       - NODE_ENV=production
       - PORT=8000
       - HOST=0.0.0.0
-      # 可以根据需要添加其他环境变量
-      # - LOG_LEVEL=info
-      # - MAX_REQUEST_SIZE=10mb
     
     # 数据卷挂载
     volumes:
       # 持久化日志文件 - 映射到宿主机的日志目录
-      - /data/apps/amazon-image-asin/logs:/app/logs
+      - /data/apps/amazon_images_get_asin/logs:/app/logs
       # 持久化临时文件目录 - 用于存储截图等临时文件
-      - /data/apps/amazon-image-asin/temp:/app/temp
+      - /data/apps/amazon_images_get_asin/temp:/app/temp
     
     # 重启策略：除非手动停止，否则总是重启
     restart: unless-stopped
@@ -34,16 +31,6 @@ services:
       timeout: 10s       # 超时时间10秒
       retries: 3         # 失败重试3次
       start_period: 40s  # 启动后40秒开始健康检查
-    
-    # 资源限制（可选，根据服务器配置调整）
-    deploy:
-      resources:
-        limits:
-          memory: 2G      # 最大内存使用量2GB
-          cpus: '1.0'     # 最大CPU使用1核
-        reservations:
-          memory: 512M    # 保留内存512MB
-          cpus: '0.25'    # 保留CPU 0.25核
     
     # 网络配置
     networks:
@@ -63,17 +50,16 @@ networks:
     driver: bridge
     name: amazon-app-network
 
-# 可选：定义命名卷（如果不想使用绝对路径）
 # volumes:
 #   app-logs:
 #     driver: local
 #     driver_opts:
 #       type: none
 #       o: bind
-#       device: /data/apps/amazon-image-asin/logs
+#       device: /data/apps/amazon_images_get_asin/logs
 #   app-temp:
 #     driver: local
 #     driver_opts:
 #       type: none
 #       o: bind
-#       device: /data/apps/amazon-image-asin/temp
+#       device: /data/apps/amazon_images_get_asin/temp
