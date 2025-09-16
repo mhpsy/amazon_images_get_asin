@@ -47,12 +47,12 @@ jobs:
           cd /data/apps/amazon-image-asin
 
           echo "Pulling the latest image..."
-          docker-compose pull amazon-image-asin  # "amazon-image-asin" 是 docker-compose.yml 中定义的服务名
+          docker compose pull amazon_images_get_asin  # "amazon-image-asin" 是 docker-compose.yml 中定义的服务名
 
           echo "Restarting the container..."
           # --force-recreate 会确保即使镜像 tag 没变也重新创建容器
           # -d 表示后台运行
-          docker-compose up -d --force-recreate amazon-image-asin
+          docker compose up -d --force-recreate amazon_images_get_asin
 
           echo "Cleaning up old images..."
           # 删除所有未被任何容器使用的 "dangling" 镜像
