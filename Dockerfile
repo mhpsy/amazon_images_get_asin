@@ -76,4 +76,4 @@ RUN chown -R appuser:appuser /app
 USER appuser
 
 # 启动应用
-CMD ["node", "dist/index.mjs"]
+CMD ["node", "dist/index.js"]
