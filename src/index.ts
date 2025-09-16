@@ -1,33 +1,21 @@
-import { uploadImagesToAmazon } from '@/amazon'
+import process from 'node:process'
 import logger from '@/log'
-import { readTempImageAsBase64, saveResultToTempTxt } from '@/utils'
+import { startServer } from './server'
 
 async function main() {
   try {
-    // 从temp文件夹读取图片并转换为base64
-    const imageBase64 = await readTempImageAsBase64('images.png')
-    logger.info('成功读取temp/images.png并转换为base64')
+    // 从环境变量读取端口号，默认3000
+    const port = Number(process.env.PORT) || 8000
+    const host = process.env.HOST || '0.0.0.0'
 
-    // 上传到Amazon并获取结果
-    const result = await uploadImagesToAmazon({
-      url: 'https://www.amazon.com/stylesnap',
-      imagesBase64: imageBase64,
-    })
+    logger.info('正在启动Amazon图片处理API服务器...')
 
-    logger.info('Amazon处理结果:', result)
-
-    // 将结果转换为字符串并保存到temp文件夹
-    const resultText = JSON.stringify(result, null, 2)
-    await saveResultToTempTxt(resultText, 'amazon_result.txt')
-
-    logger.info('处理完成，结果已保存到temp/amazon_result.txt')
+    // 启动Fastify服务器
+    await startServer(port, host)
   }
   catch (error) {
-    logger.error('处理过程中出现错误:', error)
-
-    // 即使出错也保存错误信息到文件
-    const errorText = `处理失败: ${error instanceof Error ? error.message : String(error)}\n时间: ${new Date().toISOString()}`
-    await saveResultToTempTxt(errorText, 'error_log.txt')
+    logger.error('服务启动失败:', error)
+    process.exit(1)
   }
 }
 

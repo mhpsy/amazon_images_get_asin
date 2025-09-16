@@ -6,6 +6,11 @@ export function sleep(a: number) {
   return new Promise(resolve => setTimeout(resolve, a))
 }
 
+// 简单的加法函数用于测试
+export function add(a: number, b: number): number {
+  return a + b
+}
+
 /**
  * 读取文件并转换为base64
  * @param filePath - 文件路径

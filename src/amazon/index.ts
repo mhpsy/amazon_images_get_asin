@@ -1,10 +1,12 @@
-import type { Page } from 'puppeteer-core'
-import { unlink } from 'node:fs/promises'
+import type { Page } from 'playwright'
+import type { ImageSearchResults } from './imageSearchResults'
 import logger from '@/log'
-import { base64ToTempFile, getBase64FileExtension, sleep } from '@/utils'
-import puppeteer from 'puppeteer-core'
+import { base64ToBuffer, getBase64FileExtension, getBase64MimeType } from '@/utils'
+import { chromium } from 'playwright'
+import { ImageSearchResultsSchema } from './imageSearchResults'
 
 const browserWSEndpoint = `wss://brd-customer-hl_a1d5b24f-zone-amazon_upload_images_get_asin:yv5sw40u0yen@brd.superproxy.io:9222`
+const TARGET_KEYWORD = 'stylesnapToken'
 
 export interface AmazonUploadOptions {
   url: string
@@ -14,7 +16,7 @@ export interface AmazonUploadOptions {
 
 export interface AmazonUploadResult {
   success: boolean
-  productList?: string[]
+  imageSearchResults?: ImageSearchResults
   error?: string
 }
 
@@ -27,58 +29,16 @@ function getScreenshot(page: Page, logs: string = 'screenshot') {
   return page.screenshot({ path: `./temp/screenshot/screenshot-${timestamp}-${screenshotCount}.png` })
 }
 
-function pageRequestCallback(page: Page) {
-  const TARGET_KEYWORD = 'stylesnapToken' // 将目标关键词定义成常量，方便修改
-
-  // 监听请求发起事件
-  page.on('request', (request) => {
-    const url = request.url()
-
-    // 核心判断：只处理URL包含目标关键词的请求
-    if (url.includes(TARGET_KEYWORD)) {
-      logger.info(`✅ [Request MATCH] Found request with "${TARGET_KEYWORD}":`)
-      logger.info(`   >> Method: ${request.method()}, URL: ${url}`)
-
-      if (request.method() === 'POST' && request.postData()) {
-        logger.info(`   >> POST Data: ${request.postData()}`)
-      }
+// 不加载图片、字体、媒体等资源
+function blockResources(page: Page) {
+  return page.route('**/*', (route) => {
+    const resourceType = route.request().resourceType()
+    if (resourceType === 'image'
+      || resourceType === 'font'
+      || resourceType === 'media') {
+      return route.abort()
     }
-  })
-
-  // 监听请求成功完成事件 (接收到响应)
-  page.on('response', async (response) => {
-    const url = response.request().url()
-
-    // 同样对响应进行过滤
-    if (url.includes(TARGET_KEYWORD)) {
-      logger.info(`✅ [Response MATCH] For request with "${TARGET_KEYWORD}":`)
-      logger.info(`   << Status: ${response.status()}, URL: ${url}`)
-
-      // 尝试解析并打印响应体，这对于调试至关重要
-      try {
-        const responseBody = await response.json() // 如果是JSON，直接解析
-        logger.info('   << Response JSON Body:', JSON.stringify(responseBody, null, 2))
-        logger.error(`   << Response JSON Body: ${JSON.stringify(responseBody, null, 2)}`)
-      }
-      catch {
-        // 如果解析JSON失败，尝试作为文本打印
-        const responseText = await response.text()
-        logger.info(`   << Response Text Body (first 300 chars): ${responseText.substring(0, 300)}`)
-        logger.error(`   << Response Text Body (first 300 chars): ${responseText.substring(0, 300)}`)
-      }
-    }
-  })
-
-  // 监听请求失败事件
-  page.on('requestfailed', (request) => {
-    const url = request.url()
-
-    // 同样对失败的请求进行过滤
-    if (url.includes(TARGET_KEYWORD)) {
-      logger.error(`❌ [Request Failed MATCH] For request with "${TARGET_KEYWORD}":`)
-      logger.error(`   >> URL: ${url}`)
-      logger.error(`   >> Failure Reason: ${request.failure()?.errorText}`)
-    }
+    return route.continue()
   })
 }
 
@@ -95,52 +55,52 @@ export async function uploadImagesToAmazon(options: AmazonUploadOptions): Promis
   }
 
   let browser
-  let useTempFilePaths: string = ''
   let page
 
   try {
-    // browser = await puppeteer.connect({ browserWSEndpoint })
-    browser = await puppeteer.launch({
-      channel: 'chrome',
-      headless: false,
-    })
+    browser = await chromium.connectOverCDP(browserWSEndpoint)
+    // browser = await chromium.launch({
+    //   channel: 'chrome',
+    //   headless: false,
+    // })
     logger.info(`Connected to browser, navigating to: ${url}`)
 
     page = await browser.newPage()
-    pageRequestCallback(page)
+    logger.info('New page created, goto url: %s', url)
 
-    await page.goto(url, { timeout })
+    await blockResources(page)
+
+    try {
+      await page.goto(url, { timeout: 10000, waitUntil: 'domcontentloaded' })
+    }
+    catch (error) {
+      logger.warn('Navigation timed out after 10s, continue anyway', { error })
+    }
 
     logger.info('Page loaded, waiting for file input')
     await page.waitForSelector('#file', { timeout: 30000 })
 
-    // 转换所有base64图片为临时文件
+    // 使用字节级文件上传（不依赖远端文件系统路径）
     const extension = getBase64FileExtension(imagesBase64)
     const filename = `image-${Date.now()}${extension}`
+    const mimeType = getBase64MimeType(imagesBase64)
+    const fileBuffer = await base64ToBuffer(imagesBase64)
 
-    const tempFilePath = await base64ToTempFile(imagesBase64, filename)
-    useTempFilePaths = tempFilePath
-    logger.info(`Created temp file: ${tempFilePath}`)
+    // 在触发上传前开始等待目标响应
+    const stylesnapResponsePromise = page.waitForResponse(
+      (response) => {
+        const reqUrl = response.request().url()
+        return reqUrl.includes(TARGET_KEYWORD) && response.ok()
+      },
+      { timeout },
+    )
 
-    // 上传文件
-    const fileInput = await page.$('#file.a-button-input')
-    if (!fileInput) {
-      throw new Error('File input not found')
-    }
-
-    logger.info('Waiting for file chooser')
-
-    const [fileChooser] = await Promise.all([
-      page.waitForFileChooser(),
-      // fileInput.click(),
-      page.click('#file'),
-    ])
-
-    logger.info(`File chooser: ${JSON.stringify(fileChooser)}`)
-    logger.info(`File chooser: ${fileChooser.isMultiple()}`)
-
-    await fileChooser.accept([useTempFilePaths])
-    logger.info(`Uploaded file: ${useTempFilePaths}`)
+    await page.setInputFiles('#file', {
+      name: filename,
+      mimeType,
+      buffer: fileBuffer,
+    })
+    logger.info(`Uploaded file via bytes: ${filename} (${mimeType}, ${fileBuffer.byteLength} bytes)`)
 
     // const data = await page.evaluate(() => {
     //   // @ts-ignore
@@ -153,22 +113,18 @@ export async function uploadImagesToAmazon(options: AmazonUploadOptions): Promis
     // 这里需要根据Amazon的具体页面结构来调整选择器
     try {
       logger.info('Waiting for ASIN generation')
-      await getScreenshot(page, 'screenshot-1')
-      await sleep(500)
       await getScreenshot(page, 'screenshot-2')
       await page.waitForSelector('#product_grid_container > div > section.tab-content', { timeout: 60000 })
-      await sleep(500)
       await getScreenshot(page, 'screenshot-3')
-      const tableEl = await page.$('#product_grid_container > div > section.tab-content')
-      const childrenList = await tableEl?.evaluate((tableEl) => {
-        const el = tableEl.querySelectorAll('.cellContainer')
-        const children = Array.from(el || []).map((child) => {
-          const text = (child as any).outerHTML
-          return text
-        })
-        return children
-      })
-      return { success: true, productList: childrenList }
+
+      // 读取并解析目标接口的响应
+      const targetResponse = await stylesnapResponsePromise
+      const responseBody = await targetResponse.json()
+      // logger.info('   << Response JSON Body:', responseBody)
+      const res = ImageSearchResultsSchema.parse(responseBody)
+      logger.info('   << Response JSON Body:', res.searchResults[0].bbxAsinList)
+
+      return { success: true, imageSearchResults: ImageSearchResultsSchema.parse(responseBody) }
     }
     catch (error) {
       logger.error('Timeout waiting for ASIN', error)
@@ -180,34 +136,10 @@ export async function uploadImagesToAmazon(options: AmazonUploadOptions): Promis
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
   finally {
-    // 清理临时文件
-    try {
-      await unlink(useTempFilePaths)
-      logger.info(`Cleaned up temp file: ${useTempFilePaths}`)
-    }
-    catch (error) {
-      logger.warn(`Failed to clean up temp file ${useTempFilePaths}:`, error)
-    }
-
-    // 关闭浏览器
     if (browser) {
       await getScreenshot(page!, 'browser-close')
       await browser.close()
       logger.info('Browser closed')
     }
   }
-}
-
-// 保持向后兼容的函数
-export async function runAmazon(url: string, imagesBase64: string) {
-  const result = await uploadImagesToAmazon({
-    url,
-    imagesBase64,
-  })
-
-  if (!result.success) {
-    throw new Error(result.error)
-  }
-
-  return result.productList
 }

@@ -1,4 +1,5 @@
-import type { Buffer } from 'node:buffer'
+// import type { Buffer } from 'node:buffer'
+import { Buffer } from 'node:buffer'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -13,7 +14,7 @@ export async function base64ToBuffer(base64String: string): Promise<Buffer> {
   const base64Data = base64String.replace(/^data:image\/[a-z]+;base64,/, '')
 
   // 动态导入buffer模块
-  const { Buffer } = await import('node:buffer')
+  // const { Buffer } = await import('node:buffer')
   // 将base64转换为Buffer
   return Buffer.from(base64Data, 'base64')
 }
