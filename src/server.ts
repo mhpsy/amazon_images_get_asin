@@ -1,6 +1,6 @@
 import process from 'node:process'
 import { uploadImagesToAmazon } from '@/amazon'
-import logger, { clearRequestId, generateRequestId, setRequestId } from '@/log'
+import logger, { generateRequestId, runWithRequestId } from '@/log'
 import cors from '@fastify/cors'
 import sensible from '@fastify/sensible'
 import Fastify from 'fastify'
@@ -25,25 +25,36 @@ export async function registerPlugins() {
 // 请求ID中间件
 fastify.addHook('onRequest', async (request, reply) => {
   const requestId = generateRequestId()
-  setRequestId(requestId)
 
   // 将requestId添加到请求头中，方便前端追踪
   reply.header('X-Request-ID', requestId)
 
-  logger.info(`[${request.method}] ${request.url} - 请求开始`)
+  // 将requestId存储在请求对象中，以便在后续钩子中使用
+  ;(request as any).requestId = requestId
+
+  // 在异步上下文中记录请求开始
+  runWithRequestId(requestId, () => {
+    logger.info(`[${request.method}] ${request.url} - 请求开始`)
+  })
 })
 
-// 请求完成后清理中间件
+// 请求完成后记录日志
 fastify.addHook('onResponse', async (request, reply) => {
+  const requestId = (request as any).requestId
   const statusCode = reply.statusCode
 
-  logger.info(`[${request.method}] ${request.url} - 请求完成 [${statusCode}]`)
-  clearRequestId()
+  runWithRequestId(requestId, () => {
+    logger.info(`[${request.method}] ${request.url} - 请求完成 [${statusCode}]`)
+  })
 })
 
 // 错误处理中间件
 fastify.setErrorHandler((error, request, reply) => {
-  logger.error(`请求处理错误: ${error.message}`, { error: error.stack })
+  const requestId = (request as any).requestId
+
+  runWithRequestId(requestId, () => {
+    logger.error(`请求处理错误: ${error.message}`, { error: error.stack })
+  })
 
   if (error.validation) {
     return reply.status(400).send({
@@ -60,12 +71,16 @@ fastify.setErrorHandler((error, request, reply) => {
 })
 
 // 健康检查接口
-fastify.get('/health', async (_request, _reply) => {
-  return {
-    success: true,
-    message: '服务运行正常',
-    timestamp: new Date().toISOString(),
-  }
+fastify.get('/health', async (request, _reply) => {
+  const requestId = (request as any).requestId
+
+  return runWithRequestId(requestId, () => {
+    return {
+      success: true,
+      message: '服务运行正常',
+      timestamp: new Date().toISOString(),
+    }
+  })
 })
 
 // 图片处理接口
@@ -89,59 +104,63 @@ fastify.post<{ Body: ImageUploadBody }>('/api/upload-image', {
     },
   },
 }, async (request, reply) => {
-  const { imageBase64, url = 'https://www.amazon.com/stylesnap' } = request.body
+  const requestId = (request as any).requestId
 
-  logger.info('收到图片上传请求', {
-    imageSize: imageBase64.length,
-    targetUrl: url,
-  })
+  return runWithRequestId(requestId, async () => {
+    const { imageBase64, url = 'https://www.amazon.com/stylesnap' } = request.body
 
-  try {
-    // 验证base64格式
-    if (!imageBase64.includes('data:image/') && !imageBase64.startsWith('/9j/') && !imageBase64.startsWith('iVBORw0KGgo')) {
-      return reply.status(400).send({
-        success: false,
-        error: '无效的base64图片格式',
-      })
-    }
-
-    logger.info('开始处理图片上传到Amazon')
-
-    const result = await uploadImagesToAmazon({
-      url: 'https://www.amazon.com/stylesnap',
-      imagesBase64: imageBase64,
-      timeout: 5 * 60 * 1000, // 5分钟超时
+    logger.info('收到图片上传请求', {
+      imageSize: imageBase64.length,
+      targetUrl: url,
     })
 
-    if (result.success) {
-      logger.info('Amazon图片处理成功', {
-        hasResults: !!result.imageSearchResults,
-        resultsCount: result.imageSearchResults?.searchResults?.length || 0,
+    try {
+      // 验证base64格式
+      if (!imageBase64.includes('data:image/') && !imageBase64.startsWith('/9j/') && !imageBase64.startsWith('iVBORw0KGgo')) {
+        return reply.status(400).send({
+          success: false,
+          error: '无效的base64图片格式',
+        })
+      }
+
+      logger.info('开始处理图片上传到Amazon')
+
+      const result = await uploadImagesToAmazon({
+        url: 'https://www.amazon.com/stylesnap',
+        imagesBase64: imageBase64,
+        timeout: 5 * 60 * 1000, // 5分钟超时
       })
 
-      return reply.send({
-        success: true,
-        data: result.imageSearchResults,
-        message: '图片处理完成',
-      })
+      if (result.success) {
+        logger.info('Amazon图片处理成功', {
+          hasResults: !!result.imageSearchResults,
+          resultsCount: result.imageSearchResults?.searchResults?.length || 0,
+        })
+
+        return reply.send({
+          success: true,
+          data: result.imageSearchResults,
+          message: '图片处理完成',
+        })
+      }
+      else {
+        logger.error('Amazon图片处理失败', { error: result.error })
+
+        return reply.status(500).send({
+          success: false,
+          error: result.error || 'Amazon处理失败',
+        })
+      }
     }
-    else {
-      logger.error('Amazon图片处理失败', { error: result.error })
+    catch (error) {
+      logger.error('图片上传处理异常', { error: error instanceof Error ? error.message : error })
 
       return reply.status(500).send({
         success: false,
-        error: result.error || 'Amazon处理失败',
+        error: '图片处理过程中发生异常',
       })
     }
-  }
-  catch (error) {
-    logger.error('图片上传处理异常', { error: error instanceof Error ? error.message : error })
-
-    return reply.status(500).send({
-      success: false,
-      error: '图片处理过程中发生异常',
-    })
-  }
+  })
 })
 
 // 启动服务器函数

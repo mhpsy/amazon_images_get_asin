@@ -1,21 +1,17 @@
+import { AsyncLocalStorage } from 'node:async_hooks'
 import fs from 'node:fs'
 import path from 'node:path'
 import { v4 as uuidv4 } from 'uuid'
 import winston from 'winston'
 import DailyRotateFile from 'winston-daily-rotate-file'
 
-// 请求ID上下文管理
+// 请求上下文接口
 interface RequestContext {
   requestId: string
 }
 
-// 全局请求上下文存储
-const requestContextMap = new Map<string, RequestContext>()
-
-// 为当前异步上下文生成唯一的key
-function getAsyncContextKey(): string {
-  return `async_${Date.now()}_${Math.random()}`
-}
+// 使用 AsyncLocalStorage 来管理请求上下文
+const asyncLocalStorage = new AsyncLocalStorage<RequestContext>()
 
 // 确保日志目录存在
 const logsDir = path.resolve('./logs')
@@ -23,6 +19,7 @@ if (!fs.existsSync(logsDir)) {
   fs.mkdirSync(logsDir, { recursive: true })
 }
 
+// 格式化日志输出
 function formatFunc(info: winston.Logform.TransformableInfo) {
   const { timestamp, level, message, requestId, ...meta } = info
   let metaStr = ''
@@ -33,8 +30,8 @@ function formatFunc(info: winston.Logform.TransformableInfo) {
   return `[${timestamp}]-[${level.padEnd(7)}]${reqIdStr} ${message}${metaStr}`
 }
 
+// 创建 Winston logger 实例
 const logger = winston.createLogger({
-  // 这里的日志级别默认为 info ，也就是只显示info和info级别以上的日志
   level: 'debug',
   format: winston.format.combine(
     winston.format.timestamp({
@@ -70,52 +67,39 @@ const logger = winston.createLogger({
   ],
 })
 
-// 请求ID管理函数
+// 生成请求ID
 export function generateRequestId(): string {
   return uuidv4()
 }
 
-export function setRequestId(requestId: string): void {
-  const key = getAsyncContextKey()
-  requestContextMap.set(key, { requestId })
+// 在异步上下文中运行代码
+export function runWithRequestId<T>(requestId: string, callback: () => T): T {
+  return asyncLocalStorage.run({ requestId }, callback)
 }
 
+// 获取当前请求ID
 export function getRequestId(): string | undefined {
-  for (const [key, context] of requestContextMap.entries()) {
-    if (key.startsWith('async_')) {
-      return context.requestId
-    }
-  }
-  return undefined
-}
-
-export function clearRequestId(): void {
-  const keysToDelete: string[] = []
-  for (const key of requestContextMap.keys()) {
-    if (key.startsWith('async_')) {
-      keysToDelete.push(key)
-    }
-  }
-  keysToDelete.forEach(key => requestContextMap.delete(key))
+  const context = asyncLocalStorage.getStore()
+  return context?.requestId
 }
 
 // 增强的logger，自动添加请求ID
 const enhancedLogger = {
-  info: (message: string, ...args: any[]) => {
+  info: (message: string, meta?: any) => {
     const requestId = getRequestId()
-    logger.info(message, { requestId, ...args })
+    logger.info(message, { requestId, ...meta })
   },
-  error: (message: string, ...args: any[]) => {
+  error: (message: string, meta?: any) => {
     const requestId = getRequestId()
-    logger.error(message, { requestId, ...args })
+    logger.error(message, { requestId, ...meta })
   },
-  warn: (message: string, ...args: any[]) => {
+  warn: (message: string, meta?: any) => {
     const requestId = getRequestId()
-    logger.warn(message, { requestId, ...args })
+    logger.warn(message, { requestId, ...meta })
   },
-  debug: (message: string, ...args: any[]) => {
+  debug: (message: string, meta?: any) => {
     const requestId = getRequestId()
-    logger.debug(message, { requestId, ...args })
+    logger.debug(message, { requestId, ...meta })
   },
 }
 
