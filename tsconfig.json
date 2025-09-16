@@ -2,12 +2,12 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
-    "baseUrl": ".",
+    "baseUrl": "./src",
     "rootDir": "./src",
     "module": "ESNext",
     "moduleResolution": "Node",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./*"]
     },
     "resolveJsonModule": true,
     "allowImportingTsExtensions": false,

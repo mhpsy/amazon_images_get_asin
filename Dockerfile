@@ -7,8 +7,8 @@ WORKDIR /app
 # 安装pnpm
 RUN npm install -g pnpm
 
-# 复制package文件
-COPY package.json pnpm-lock.yaml ./
+# 复制package文件和tsconfig
+COPY package.json pnpm-lock.yaml tsconfig.json ./
 
 # 安装所有依赖（包含devDependencies用于构建）
 RUN pnpm install --frozen-lockfile
