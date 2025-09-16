@@ -6,26 +6,12 @@
   "author": "mhpsy",
   "license": "ISC",
   "keywords": [],
-  "exports": {
-    "import": {
-      "types": "./dist/index.d.mts",
-      "default": "./dist/index.mjs"
-    },
-    "require": {
-      "types": "./dist/index.d.cts",
-      "default": "./dist/index.cjs"
-    }
-  },
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.cts",
+  "main": "./dist/index.js",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "start": "node dist/index.mjs",
+    "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
-    "build": "pkgroll",
-    "build:watch": "pkgroll --watch",
-    "build:source": "pkgroll --source",
+    "build": "tsc --outDir dist --module esnext --target esnext --declaration false --sourceMap false",
     "lint": "eslint",
     "test": "vitest --ui",
     "docker:build": "docker build -t amazon-image-asin .",
@@ -53,7 +39,6 @@
     "@types/node": "^22.13.14",
     "@vitest/ui": "^3.0.9",
     "eslint": "^9.23.0",
-    "pkgroll": "^2.12.1",
     "tinyexec": "^1.0.1",
     "tsx": "^4.19.3",
     "typescript": "^5.8.2",
