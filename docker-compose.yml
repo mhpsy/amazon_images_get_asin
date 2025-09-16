@@ -8,8 +8,8 @@ services:
     ports:
       - "127.0.0.1:7999:8000"
     
-    # 使用当前用户运行，避免权限问题
-    user: "${UID:-1000}:${GID:-1000}"
+    # 使用 root 用户运行，确保对挂载目录有写权限
+    user: "0:0"
     
     # 环境变量配置
     environment:
@@ -19,10 +19,10 @@ services:
     
     # 数据卷挂载
     volumes:
-      # 持久化日志文件 - 映射到当前目录下的logs目录
-      - ./logs:/app/logs
-      # 持久化临时文件目录 - 用于存储截图等临时文件  
-      - ./temp:/app/temp
+      # 持久化日志文件 - 映射到宿主机的日志目录
+      - /data/apps/amazon_images_get_asin/logs:/app/logs
+      # 持久化临时文件目录 - 用于存储截图等临时文件
+      - /data/apps/amazon_images_get_asin/temp:/app/temp
     
     # 重启策略：除非手动停止，否则总是重启
     restart: unless-stopped
