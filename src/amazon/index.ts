@@ -1,7 +1,7 @@
 import type { Page } from 'playwright'
 import type { ImageSearchResults } from './imageSearchResults'
 import logger from '@/log'
-import { base64ToBuffer, getBase64FileExtension, getBase64MimeType } from '@/utils'
+import { base64ToBuffer, getBase64FileExtension, getBase64MimeType, sleep } from '@/utils'
 import { chromium } from 'playwright'
 import { ImageSearchResultsSchema } from './imageSearchResults'
 
@@ -25,7 +25,7 @@ let screenshotCount = 0
 function getScreenshot(page: Page, logs: string = 'screenshot') {
   const timestamp = Date.now()
   screenshotCount++
-  logger.info(`${logs}-${screenshotCount}`)
+  logger.info(`[${screenshotCount}] ${logs}`)
   return page.screenshot({ path: `./temp/screenshot/screenshot-${timestamp}-${screenshotCount}.png` })
 }
 
@@ -66,12 +66,15 @@ export async function uploadImagesToAmazon(options: AmazonUploadOptions): Promis
     logger.info(`Connected to browser, navigating to: ${url}`)
 
     page = await browser.newPage()
-    logger.info('New page created, goto url: %s', url)
+    logger.info(`New page created, goto url: ${url}`)
 
     await blockResources(page)
 
     try {
-      await page.goto(url, { timeout: 10000, waitUntil: 'domcontentloaded' })
+      await page.goto(url, { timeout: 40000, waitUntil: 'domcontentloaded' })
+
+      await getScreenshot(page, 'screenshot-1')
+      await sleep(1000)
     }
     catch (error) {
       logger.warn('Navigation timed out after 10s, continue anyway', { error })
@@ -112,6 +115,7 @@ export async function uploadImagesToAmazon(options: AmazonUploadOptions): Promis
 
     // 这里需要根据Amazon的具体页面结构来调整选择器
     try {
+      await sleep(1000)
       logger.info('Waiting for ASIN generation')
       await getScreenshot(page, 'screenshot-2')
       await page.waitForSelector('#product_grid_container > div > section.tab-content', { timeout: 60000 })
@@ -137,7 +141,7 @@ export async function uploadImagesToAmazon(options: AmazonUploadOptions): Promis
   }
   finally {
     if (browser) {
-      await getScreenshot(page!, 'browser-close')
+      // await getScreenshot(page!, 'browser-close')
       await browser.close()
       logger.info('Browser closed')
     }
